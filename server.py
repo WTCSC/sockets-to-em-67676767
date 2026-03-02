@@ -13,14 +13,11 @@ server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 # Bind to 0.0.0.0:5000 and listen
 server.bind(("0.0.0.0", 5000))
 server.listen(1)
-# Make server socket non-blocking so we can poll it from the Qt event loop
 server.setblocking(False)
 
 print("Server listening on 0.0.0.0:5000")
 
-# We'll store the connected client socket (or None)
 client = None
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -35,7 +32,6 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.label)
 
     def on_received_color(self, color, bgColor):
-        # Safely set styles on the main (GUI) thread
         self.label.setStyleSheet(f"color: {color}; font-size: 48px;")
         self.setStyleSheet(f"background-color: {bgColor};")
 
@@ -54,7 +50,6 @@ def check_sockets():
         client = conn
         print(f"Connected to {addr}")
 
-    # If we have a client, check for incoming data
     if client:
         rlist, _, _ = select.select([client], [], [], 0)
         if rlist:
@@ -78,30 +73,23 @@ def check_sockets():
             window.on_received_color(color, bgColor)
 
             # Echo a response back to the client
-            try:
-                client.send(f"Server received: {msg}".encode())
-            except (BlockingIOError, BrokenPipeError):
-                # If send would block or pipe broken, ignore for now
-                pass
+            client.send(f"Server received: {msg}".encode())
 
 
 def cleanup():
+    """
+    Closes both the server and the client if they exist.
+    """
+
     global client, server
-    try:
-        if client:
-            client.close()
-            client = None
-    except Exception:
-        pass
-    try:
-        if server:
-            server.close()
-            server = None
-    except Exception:
-        pass
+    if client:
+        client.close()
+        client = None
+    if server:
+        server.close()
+        server = None
 
 
-# Create QApplication and window
 app = QApplication(sys.argv)
 window = MainWindow()
 window.show()
@@ -109,9 +97,8 @@ window.show()
 # Setup a QTimer to poll sockets regularly without blocking the GUI
 timer = QTimer()
 timer.timeout.connect(check_sockets)
-timer.start(100)  # check every 100 ms
+timer.start(100)
 
-# Ensure sockets are closed when the app quits
 app.aboutToQuit.connect(cleanup)
 
 sys.exit(app.exec_())
